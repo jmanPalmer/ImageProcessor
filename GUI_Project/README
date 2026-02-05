@@ -1,0 +1,38 @@
+**IM JUST USING THIS README TO MORE OR LESS EXPLAIN AND DOCCUMENT MY UNDERSTANDING ON HOW EVERYTHING IMPORTANT WORKS**
+
+- Image sharpening: we create a kernel matrix (In my case 3x3 seems to work best, online sentiment also agrees with this)
+  from what I have seen the best image sharpening results from a matrix like:
+  [0, -1, 0]
+  [-1, 5, -1]
+  [0, -1, 0]
+  and what basically happens is that at each pixel we take the value of the pixels surrounding it and its own values 
+  and then apply the kernel to get the value of the pixels new value. it essentially looks like: 
+  [0*(value of pixel up one and left one from origin pix), -1*(value of pixel above origin pix), 0*(value of pixel up one and right one from origin pix)]
+  [-1*(value of pixel on the left side of the origin pix), 5*(origin pixels value), -1*(value of pixel to the right of the origin pixel)]
+  [0*(value of pixel down one and left one from origin pix), -1*(value of pixel below origin pix), 0*(value of pixel down one and right one from origin pix)]
+  and then we sum up the resulting values so that: 
+  new Origin Pixel value(for sharpened image) = 0 -(value of pixel above origin pix) - (value of pixel to the left) + 5(origin pixel value) - (value of pixel to right) - (value of pixel below)
+    - So I used a range of 0-100 so that when the value is 0 we get the identity matrix of [0,0,0][0,1,0][0,0,0] applying this will result in the same image, and if its 100
+      we get the matrix [0,-1,0][-1,5,-1][0,-1,0]. The equation to achieve this was done with simple function techniques to calculate the values of the surrounding pixels 
+      and origin pixel 
+       -for surrounding at x=0 we want y= 0 and at x=100 we want y=-1, trivial to derive y=-(x/100)
+       -for origin pixel at x=0 we want y=1 and at x=100 we want y=5, trivial to derive y=4(x/100) + 1
+
+
+
+- How the conversion between opencv image data and pyqt image data works: 
+    - opencv2 works with images in BGR whilst pyqt5 uses RGB
+    - when we originally read in an image using pyqt5 it comes in RGB, immediately need to convert to BGR so we can manipulate the data using 
+      opencv2 functions and numpy
+      -we convert to BGR by reading in the raw pixel data from the pixMaps QImage. Going into specifics how the rgb pixel data looks is each pixel 
+       has a [r,g,b] value so its an array of 3-D arrays with set height and width values (so the pixels can have a location).
+       -We force the QImage to have the format of RGB888 which means RGB with 3 bytes per pixel. get its dimensions so we can construct our own 
+        pixel data array but in bgr along with a pointer pointing to the start of the pixel data in memory. We also set the size of the pointer so we 
+        know how much data to read in (just haveing the address of the starting pointer doesnt tell us where to stop) we do w*h*3 as the size since there are 
+        w*h pixels and each pixel has 3 values (R, G, B). Now we just use numpy to create a w*h array with each entry having an array of 3 values.
+       -finally after converting our data to something opencv can use we simply use an opencv function to convert our RGB numpy array to a BGR one
+    - Reverting back to RGB is a lot simpler. Use opencv built in function to transform our current img data in RGB, since its a numpy array we can use .shape 
+      to simply get the dimensions (h,w,channels).
+      - we then simply create a QImage where we pass the pixel data from our RGB (given from opencv2), width and height of the image, how many bytes per row 
+        (w*channel since w=num of pixels per line and channel since each pixel contains channel number of values) and we force it to have RGB888 format (rgb with 3 bytes per pixel)
+      -finally we just convert the QImage into a pixmap with built in pyqt5 function and display the new image data to pyqt5
