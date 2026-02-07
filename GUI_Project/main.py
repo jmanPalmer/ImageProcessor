@@ -48,6 +48,7 @@ class viewingWidget(QWidget):
         #intialize a default state for our UI (display no image loaded yet)
         self.imgLabel = QLabel("No Image loaded",self)
         self.imgLabel.setAlignment(Qt.AlignCenter)
+        self.imgLabel.setScaledContents(True) #scales to show the entirety of larger images
         self.layout.addWidget(self.imgLabel)
         
         self.setLayout(self.layout) #apply the layout to our viewing widget
@@ -92,40 +93,72 @@ class functionWidget(QWidget):
         self.viewingWid = parent 
         self.mainWin = parent.mainWin
 
-        self.slider = None
-        self.SharpenValueLabel = None
+        #initialize image sharpening tool
+        self.currentSharpenVal = 0 #need this for when we call sharpenSliderChance in the strength changing function
+        self.currentSharpenStrengthVal = 1 #need this to know how large our kernel matrix should be when sharpenSliderChange is called
+        self.sharpenSlider, self.SharpenValueLabel = self.createSlider("Image Sharpening", self.sharpenSliderChange, 0, 100)
+        self.sharpenStrengthSlider, self.sharpenStrengthLabel = self.createSlider("Sharpening Strength", self.sharpenStrengthChange, 1, 5)
 
-        self.initSharpenSlider()
         self.setLayout(self.layout)
 
-    #initialize the slider that handles the sharpening of our image, will be a function with the range 0-1
-    def initSharpenSlider(self):
-
-        label = QLabel("Image Sharpening",self)
+    #function to initialize a slider, default values for min and max will be 0 and 100 unless specified otherwise
+    def createSlider(self, name, actionFunc, min=0, max=100):
+        label = QLabel(name,self)
         label.setAlignment(Qt.AlignCenter)
         self.layout.addWidget(label)
 
-        self.slider = QSlider(self) #define slider, will reside in the function widget in our viewer
-        self.slider.setOrientation(Qt.Horizontal)
-        self.slider.setMinimum(0)
-        self.slider.setMaximum(100)
-        self.slider.valueChanged.connect(self.sharpenSliderChange)
-        self.layout.addWidget(self.slider) #add the slider to the function widget in viewer
+        slider = QSlider(self) #define slider, will reside in the function widget in our viewer
+        slider.setOrientation(Qt.Horizontal)
+        slider.setMinimum(min)
+        slider.setMaximum(max)
+        slider.valueChanged.connect(actionFunc)
+        self.layout.addWidget(slider) #add the slider to the function widget in viewer
 
-        self.SharpenValueLabel = QLabel("0")
-        self.SharpenValueLabel.setAlignment(Qt.AlignCenter)
-        self.layout.addWidget(self.SharpenValueLabel)
+        valueLabel = QLabel(f"{min}")
+        valueLabel.setAlignment(Qt.AlignCenter)
+        self.layout.addWidget(valueLabel)
+
+        return slider, valueLabel
 
     #apply the changes of the slider to sharpen or unsharpen the image
     def sharpenSliderChange(self, val):
-        outerValues = -(val/100) #outer will be at most -1 and at 0 we want a normal image
-        innerValue = 4*(val/100) + 1 #we want a max value of 5 and a minimum value of 1 (going with 5 for now as this is what I found to be used most often online)
-        kernel = np.array([[0, outerValues, 0], [outerValues, innerValue, outerValues], [0, outerValues, 0]]) #create the kernel to be applied to each pixel to sharpen
+        n = (self.currentSharpenStrengthVal*2) + 1 #for nxn kernel matrix, n must always be odd, for me I'm using a range of 3,5,7,9,11
+        self.currentSharpenVal = val #will need to this so we can update the image when the strength is changed as well
+        outerValues = -(val/100)     #outer will be at most -1 and at 0 we want a normal image
+
+        #initialize kernel along with helper variables
+        kernel = np.zeros((n, n))
+        center = (n-1)//2
+        counter = 0
+
+        #utilize manhattan distance to determine if the entry should be -outerValue or 0 because with the laplacian kernel
+        #entries that are (n-1)/2 manhattan distance away from the center should be -outerValue
+        #in the end we want the weight of all the outervalues + inner value to equal 1
+        for i in range(n):
+            verticalDisp = abs(center-i) #center row value subtracted by the current row value
+            for j in range(n):
+                horizontalDisp = abs(center-j)
+                mannHattanDist = verticalDisp + horizontalDisp
+                if mannHattanDist<=center:
+                    kernel[i,j] = outerValues
+                    counter+= 1
+
+        #want our center to make it so that everything sums up to 1 (weight wise), initial formula doesnt work as if the kernels weights dont sum up to 1, it becomes pitch black
+        kernel[center,center] = 1+ (-1 * (counter * outerValues))
+
+        #kernel = np.array([[0, outerValues, 0], [outerValues, innerValue, outerValues], [0, outerValues, 0]]) 
         self.SharpenValueLabel.setText(f"{val}")
 
         #if there is image data, we apply the tranformation to its data and update the viewer
         if self.viewingWid.hasImage:
             self.viewingWid.applySharpen(kernel)
+
+    #simple function that handles the changing of the sharpen strength (radius of the kernel)
+    def sharpenStrengthChange(self,val):
+
+        self.currentSharpenStrengthVal = val
+        self.sharpenStrengthLabel.setText(f"{val}")
+        self.sharpenSliderChange(self.currentSharpenVal) #call the sharpen applying function to apply whenever strength is changed as well
 
 
 
