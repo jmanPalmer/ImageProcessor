@@ -122,16 +122,18 @@ class functionWidget(QWidget):
 
     #apply the changes of the slider to sharpen or unsharpen the image
     def sharpenSliderChange(self, val):
-        n = (self.currentSharpenStrengthVal*2) + 1 #for nxn kernel matrix, must always be negative, for me I'm using a range of 3,5,7,9,11
-        self.currentSharpenVal = val #will need to this so we can use this function in the strength function as well
-        outerValues = -(val/100)   #outer will be at most -1 and at 0 we want a normal image
+        n = (self.currentSharpenStrengthVal*2) + 1 #for nxn kernel matrix, n must always be odd, for me I'm using a range of 3,5,7,9,11
+        self.currentSharpenVal = val #will need to this so we can update the image when the strength is changed as well
+        outerValues = -(val/100)     #outer will be at most -1 and at 0 we want a normal image
 
+        #initialize kernel along with helper variables
         kernel = np.zeros((n, n))
         center = (n-1)//2
         counter = 0
 
         #utilize manhattan distance to determine if the entry should be -outerValue or 0 because with the laplacian kernel
         #entries that are (n-1)/2 manhattan distance away from the center should be -outerValue
+        #in the end we want the weight of all the outervalues + inner value to equal 1
         for i in range(n):
             verticalDisp = abs(center-i) #center row value subtracted by the current row value
             for j in range(n):
